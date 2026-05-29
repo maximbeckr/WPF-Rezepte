@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lebensmittel Datenbank</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #eee; min-height: 100vh; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 20px 24px; position: sticky; top: 0; z-index: 100; }
+  h1 { font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 14px; }
+
+  #search { width: 100%; background: #252525; border: 1px solid #333; border-radius: 8px; color: #eee; font-size: 1rem; padding: 10px 14px; outline: none; transition: border-color .2s; }
+  #search:focus { border-color: #555; }
+  #search::placeholder { color: #555; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .cat-btn { background: #252525; border: 1px solid #333; border-radius: 20px; color: #999; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .cat-btn:hover { border-color: #555; color: #ccc; }
+  .cat-btn.active { background: #333; border-color: #666; color: #fff; }
+
+  #count { font-size: 0.8rem; color: #555; margin-top: 10px; }
+
+  main { padding: 20px 24px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+
+  .card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+  }
+  .card:hover { background: #222; border-color: #3a3a3a; transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+  .card:active { transform: translateY(0); }
+
+  .card-img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    background: #fff;
+    display: block;
+    padding: 10px;
+  }
+  .card-img.error { background: #1a1a1a; padding: 0; }
+
+  .card-body { padding: 10px 10px 8px; }
+  .card-name { font-size: 0.8rem; color: #ccc; font-weight: 500; }
+  .card-dl { font-size: 0.65rem; color: #444; margin-top: 3px; }
+  .card:hover .card-dl { color: #777; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 20px; font-size: 0.85rem; color: #ccc; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  #toast.show { opacity: 1; }
+
+  canvas { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lebensmittel Datenbank</h1>
+  <input id="search" type="search" placeholder="Lebensmittel suchen..." autocomplete="off" />
+  <div class="filter-row" id="filters"></div>
+  <div id="count"></div>
+</header>
+
+<main><div id="grid"></div></main>
+<div id="toast"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+// German name → TheMealDB ingredient image name
+const DB = [
+  // Gemüse
+  {n:"Tomate",       img:"Tomato",            k:"Gemüse"},
+  {n:"Gurke",        img:"Cucumber",          k:"Gemüse"},
+  {n:"Paprika",      img:"Red Pepper",        k:"Gemüse"},
+  {n:"Karotte",      img:"Carrots",           k:"Gemüse"},
+  {n:"Brokkoli",     img:"Broccoli",          k:"Gemüse"},
+  {n:"Blumenkohl",   img:"Cauliflower",       k:"Gemüse"},
+  {n:"Salat",        img:"Lettuce",           k:"Gemüse"},
+  {n:"Spinat",       img:"Spinach",           k:"Gemüse"},
+  {n:"Zwiebel",      img:"Onion",             k:"Gemüse"},
+  {n:"Knoblauch",    img:"Garlic",            k:"Gemüse"},
+  {n:"Kartoffel",    img:"Potatoes",          k:"Gemüse"},
+  {n:"Süßkartoffel", img:"Sweet Potato",      k:"Gemüse"},
+  {n:"Mais",         img:"Sweetcorn",         k:"Gemüse"},
+  {n:"Champignons",  img:"Mushrooms",         k:"Gemüse"},
+  {n:"Aubergine",    img:"Aubergine",         k:"Gemüse"},
+  {n:"Zucchini",     img:"Courgettes",        k:"Gemüse"},
+  {n:"Kürbis",       img:"Butternut Squash",  k:"Gemüse"},
+  {n:"Lauch",        img:"Leek",              k:"Gemüse"},
+  {n:"Sellerie",     img:"Celery",            k:"Gemüse"},
+  {n:"Erbsen",       img:"Peas",              k:"Gemüse"},
+  {n:"Bohnen",       img:"Green Beans",       k:"Gemüse"},
+  {n:"Spargel",      img:"Asparagus",         k:"Gemüse"},
+  {n:"Rotkohl",      img:"Red Cabbage",       k:"Gemüse"},
+  {n:"Weißkohl",     img:"Cabbage",           k:"Gemüse"},
+  {n:"Fenchel",      img:"Fennel",            k:"Gemüse"},
+  {n:"Avocado",      img:"Avocado",           k:"Gemüse"},
+  {n:"Ingwer",       img:"Ginger",            k:"Gemüse"},
+  {n:"Chili",        img:"Red Chilli",        k:"Gemüse"},
+  {n:"Artischocke",  img:"Artichokes",        k:"Gemüse"},
+  {n:"Rucola",       img:"Rocket",            k:"Gemüse"},
+  {n:"Linsen",       img:"Lentils",           k:"Gemüse"},
+  {n:"Kichererbsen", img:"Chickpeas",         k:"Gemüse"},
+  {n:"Rote Bete",    img:"Beetroot",          k:"Gemüse"},
+
+  // Obst
+  {n:"Apfel",        img:"Apple",             k:"Obst"},
+  {n:"Birne",        img:"Pear",              k:"Obst"},
+  {n:"Banane",       img:"Banana",            k:"Obst"},
+  {n:"Orange",       img:"Orange",            k:"Obst"},
+  {n:"Zitrone",      img:"Lemon",             k:"Obst"},
+  {n:"Limette",      img:"Lime",              k:"Obst"},
+  {n:"Erdbeere",     img:"Strawberries",      k:"Obst"},
+  {n:"Heidelbeere",  img:"Blueberries",       k:"Obst"},
+  {n:"Kirsche",      img:"Cherries",          k:"Obst"},
+  {n:"Traube",       img:"Grapes",            k:"Obst"},
+  {n:"Wassermelone", img:"Watermelon",        k:"Obst"},
+  {n:"Mango",        img:"Mango",             k:"Obst"},
+  {n:"Ananas",       img:"Pineapple",         k:"Obst"},
+  {n:"Kiwi",         img:"Kiwi Fruit",        k:"Obst"},
+  {n:"Pfirsich",     img:"Peach",             k:"Obst"},
+  {n:"Himbeere",     img:"Raspberries",       k:"Obst"},
+  {n:"Grapefruit",   img:"Grapefruit",        k:"Obst"},
+  {n:"Kokosnuss",    img:"Coconut Cream",     k:"Obst"},
+  {n:"Aprikose",     img:"Apricot",           k:"Obst"},
+  {n:"Cranberry",    img:"Cranberries",       k:"Obst"},
+
+  // Fleisch & Fisch
+  {n:"Hähnchenbrust",    img:"Chicken Breast",    k:"Fleisch & Fisch"},
+  {n:"Hähnchenkeule",    img:"Chicken Thighs",    k:"Fleisch & Fisch"},
+  {n:"Hackfleisch",      img:"Minced Beef",        k:"Fleisch & Fisch"},
+  {n:"Rindfleisch",      img:"Beef",               k:"Fleisch & Fisch"},
+  {n:"Schweinefleisch",  img:"Pork",               k:"Fleisch & Fisch"},
+  {n:"Speck",            img:"Bacon",              k:"Fleisch & Fisch"},
+  {n:"Wurst",            img:"Sausages",           k:"Fleisch & Fisch"},
+  {n:"Lachs",            img:"Salmon",             k:"Fleisch & Fisch"},
+  {n:"Thunfisch",        img:"Tuna",               k:"Fleisch & Fisch"},
+  {n:"Garnelen",         img:"Prawns",             k:"Fleisch & Fisch"},
+  {n:"Kabeljau",         img:"Cod",                k:"Fleisch & Fisch"},
+  {n:"Putenbrust",       img:"Turkey",             k:"Fleisch & Fisch"},
+  {n:"Lammfleisch",      img:"Lamb",               k:"Fleisch & Fisch"},
+  {n:"Kalbfleisch",      img:"Veal",               k:"Fleisch & Fisch"},
+  {n:"Schinken",         img:"Gammon",             k:"Fleisch & Fisch"},
+
+  // Milch & Eier
+  {n:"Ei",           img:"Egg",               k:"Milch & Eier"},
+  {n:"Milch",        img:"Milk",              k:"Milch & Eier"},
+  {n:"Butter",       img:"Butter",            k:"Milch & Eier"},
+  {n:"Joghurt",      img:"Yogurt",            k:"Milch & Eier"},
+  {n:"Käse",         img:"Cheddar Cheese",    k:"Milch & Eier"},
+  {n:"Mozzarella",   img:"Mozzarella",        k:"Milch & Eier"},
+  {n:"Parmesan",     img:"Parmesan",          k:"Milch & Eier"},
+  {n:"Quark",        img:"Fromage Frais",     k:"Milch & Eier"},
+  {n:"Sahne",        img:"Double Cream",      k:"Milch & Eier"},
+  {n:"Frischkäse",   img:"Cream Cheese",      k:"Milch & Eier"},
+  {n:"Feta",         img:"Feta",              k:"Milch & Eier"},
+  {n:"Gouda",        img:"Gouda Cheese",      k:"Milch & Eier"},
+  {n:"Kokosmilch",   img:"Coconut Milk",      k:"Milch & Eier"},
+
+  // Getreide
+  {n:"Mehl",         img:"Plain Flour",       k:"Getreide"},
+  {n:"Reis",         img:"Rice",              k:"Getreide"},
+  {n:"Nudeln",       img:"Pasta",             k:"Getreide"},
+  {n:"Brot",         img:"Bread",             k:"Getreide"},
+  {n:"Haferflocken", img:"Oats",              k:"Getreide"},
+  {n:"Quinoa",       img:"Quinoa",            k:"Getreide"},
+  {n:"Bulgur",       img:"Bulgar Wheat",      k:"Getreide"},
+  {n:"Couscous",     img:"Cous Cous",         k:"Getreide"},
+  {n:"Grieß",        img:"Semolina",          k:"Getreide"},
+  {n:"Maisstärke",   img:"Cornstarch",        k:"Getreide"},
+  {n:"Paniermehl",   img:"Breadcrumbs",       k:"Getreide"},
+
+  // Gewürze
+  {n:"Salz",             img:"Salt",              k:"Gewürze"},
+  {n:"Pfeffer",          img:"Black Pepper",      k:"Gewürze"},
+  {n:"Paprikapulver",    img:"Paprika",           k:"Gewürze"},
+  {n:"Kreuzkümmel",      img:"Cumin",             k:"Gewürze"},
+  {n:"Oregano",          img:"Oregano",           k:"Gewürze"},
+  {n:"Basilikum",        img:"Basil",             k:"Gewürze"},
+  {n:"Petersilie",       img:"Parsley",           k:"Gewürze"},
+  {n:"Thymian",          img:"Thyme",             k:"Gewürze"},
+  {n:"Rosmarin",         img:"Rosemary",          k:"Gewürze"},
+  {n:"Koriander",        img:"Coriander",         k:"Gewürze"},
+  {n:"Kurkuma",          img:"Turmeric",          k:"Gewürze"},
+  {n:"Zimt",             img:"Cinnamon",          k:"Gewürze"},
+  {n:"Muskatnuss",       img:"Nutmeg",            k:"Gewürze"},
+  {n:"Curry",            img:"Curry Powder",      k:"Gewürze"},
+  {n:"Chili Flocken",    img:"Red Chilli Flakes", k:"Gewürze"},
+  {n:"Dill",             img:"Dill",              k:"Gewürze"},
+  {n:"Lorbeerblatt",     img:"Bay Leaf",          k:"Gewürze"},
+  {n:"Kardamom",         img:"Cardamom",          k:"Gewürze"},
+  {n:"Knoblauchpulver",  img:"Garlic Powder",     k:"Gewürze"},
+  {n:"Vanille",          img:"Vanilla",           k:"Gewürze"},
+
+  // Öle & Saucen
+  {n:"Olivenöl",         img:"Olive Oil",         k:"Öle & Saucen"},
+  {n:"Sonnenblumenöl",   img:"Sunflower Oil",     k:"Öle & Saucen"},
+  {n:"Essig",            img:"White Wine Vinegar",k:"Öle & Saucen"},
+  {n:"Sojasauce",        img:"Soy Sauce",         k:"Öle & Saucen"},
+  {n:"Tomatenmark",      img:"Tomato Puree",      k:"Öle & Saucen"},
+  {n:"Ketchup",          img:"Tomato Ketchup",    k:"Öle & Saucen"},
+  {n:"Mayonnaise",       img:"Mayonnaise",        k:"Öle & Saucen"},
+  {n:"Senf",             img:"Dijon Mustard",     k:"Öle & Saucen"},
+  {n:"Honig",            img:"Honey",             k:"Öle & Saucen"},
+  {n:"Worcestersauce",   img:"Worcestershire Sauce",k:"Öle & Saucen"},
+  {n:"Tabasco",          img:"Tabasco",           k:"Öle & Saucen"},
+  {n:"Balsamico",        img:"Balsamic Vinegar",  k:"Öle & Saucen"},
+  {n:"Fischsauce",       img:"Fish Sauce",        k:"Öle & Saucen"},
+
+  // Nüsse & Samen
+  {n:"Mandeln",          img:"Almonds",           k:"Nüsse & Samen"},
+  {n:"Walnüsse",         img:"Walnuts",           k:"Nüsse & Samen"},
+  {n:"Haselnüsse",       img:"Hazelnuts",         k:"Nüsse & Samen"},
+  {n:"Cashewnüsse",      img:"Cashew Nuts",       k:"Nüsse & Samen"},
+  {n:"Erdnüsse",         img:"Peanuts",           k:"Nüsse & Samen"},
+  {n:"Erdnussbutter",    img:"Peanut Butter",     k:"Nüsse & Samen"},
+  {n:"Sonnenblumenkerne",img:"Sunflower Seeds",   k:"Nüsse & Samen"},
+  {n:"Sesam",            img:"Sesame Seeds",      k:"Nüsse & Samen"},
+  {n:"Leinsamen",        img:"Flax Seeds",        k:"Nüsse & Samen"},
+  {n:"Chiasamen",        img:"Chia Seeds",        k:"Nüsse & Samen"},
+  {n:"Pistazien",        img:"Pistachio Nuts",    k:"Nüsse & Samen"},
+  {n:"Pinienkerne",      img:"Pine Nuts",         k:"Nüsse & Samen"},
+
+  // Süßes & Backen
+  {n:"Zucker",           img:"Sugar",             k:"Süßes & Backen"},
+  {n:"Puderzucker",      img:"Icing Sugar",       k:"Süßes & Backen"},
+  {n:"Backpulver",       img:"Baking Powder",     k:"Süßes & Backen"},
+  {n:"Natron",           img:"Bicarbonate Of Soda",k:"Süßes & Backen"},
+  {n:"Schokolade",       img:"Dark Chocolate",    k:"Süßes & Backen"},
+  {n:"Kakaopulver",      img:"Cocoa Powder",      k:"Süßes & Backen"},
+  {n:"Hefe",             img:"Yeast",             k:"Süßes & Backen"},
+  {n:"Marmelade",        img:"Strawberry Jam",    k:"Süßes & Backen"},
+  {n:"Kokosraspeln",     img:"Desiccated Coconut",k:"Süßes & Backen"},
+  {n:"Ahornsirup",       img:"Maple Syrup",       k:"Süßes & Backen"},
+];
+
+const IMG_BASE = "https://www.themealdb.com/images/ingredients/";
+
+const CATS = ["Alle", ...new Set(DB.map(x => x.k))];
+let activeFilter = "Alle";
+let searchTerm = "";
+
+function imgUrl(img) {
+  return IMG_BASE + encodeURIComponent(img) + ".png";
+}
+
+function render() {
+  const q = searchTerm.toLowerCase();
+  const items = DB.filter(x => {
+    const catOk = activeFilter === "Alle" || x.k === activeFilter;
+    const searchOk = !q || x.n.toLowerCase().includes(q) || x.k.toLowerCase().includes(q);
+    return catOk && searchOk;
+  });
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  items.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const img = document.createElement("img");
+    img.className = "card-img";
+    img.src = imgUrl(item.img);
+    img.alt = item.n;
+    img.loading = "lazy";
+    img.onerror = () => { img.src = ""; img.classList.add("error"); };
+
+    card.innerHTML = `<div class="card-body"><div class="card-name">${item.n}</div><div class="card-dl">↓ PNG herunterladen</div></div>`;
+    card.insertBefore(img, card.firstChild);
+    card.onclick = () => downloadPNG(item, img);
+    grid.appendChild(card);
+  });
+
+  document.getElementById("count").textContent = `${items.length} Lebensmittel`;
+}
+
+function renderFilters() {
+  const row = document.getElementById("filters");
+  CATS.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "cat-btn" + (cat === activeFilter ? " active" : "");
+    btn.textContent = cat;
+    btn.onclick = () => {
+      activeFilter = cat;
+      document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      render();
+    };
+    row.appendChild(btn);
+  });
+}
+
+function downloadPNG(item, imgEl) {
+  const size = 400;
+  const canvas = document.getElementById("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, size, size);
+
+  const draw = () => {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    const pad = 20;
+    ctx.drawImage(imgEl, pad, pad, size - pad * 2, size - pad * 2);
+
+    const link = document.createElement("a");
+    link.download = item.n.replace(/\s+/g, "_") + ".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    showToast(`${item.n}.png gespeichert`);
+  };
+
+  if (imgEl.complete && imgEl.naturalWidth > 0) {
+    draw();
+  } else {
+    const tmp = new Image();
+    tmp.crossOrigin = "anonymous";
+    tmp.src = imgUrl(item.img);
+    tmp.onload = () => { ctx.drawImage(tmp, 20, 20, size - 40, size - 40); draw(); };
+    tmp.onerror = () => showToast("Bild konnte nicht geladen werden");
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+document.getElementById("search").addEventListener("input", e => {
+  searchTerm = e.target.value;
+  render();
+});
+
+renderFilters();
+render();
+</script>
+</body>
+</html>

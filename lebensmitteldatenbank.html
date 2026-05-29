@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lebensmittel Datenbank</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #eee; min-height: 100vh; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 20px 24px; position: sticky; top: 0; z-index: 100; }
+  h1 { font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 14px; letter-spacing: 0.02em; }
+
+  .search-row { display: flex; gap: 10px; align-items: center; }
+  #search { flex: 1; background: #252525; border: 1px solid #333; border-radius: 8px; color: #eee; font-size: 1rem; padding: 10px 14px; outline: none; transition: border-color .2s; }
+  #search:focus { border-color: #555; }
+  #search::placeholder { color: #555; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .cat-btn { background: #252525; border: 1px solid #333; border-radius: 20px; color: #999; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .cat-btn:hover { border-color: #555; color: #ccc; }
+  .cat-btn.active { background: #333; border-color: #666; color: #fff; }
+
+  #count { font-size: 0.8rem; color: #555; margin-top: 10px; }
+
+  main { padding: 20px 24px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px 10px 12px; text-align: center; cursor: pointer; transition: all .15s; user-select: none; }
+  .card:hover { background: #222; border-color: #3a3a3a; transform: translateY(-1px); }
+  .card:active { transform: translateY(0); }
+  .card .emoji { font-size: 2.4rem; display: block; margin-bottom: 8px; line-height: 1; }
+  .card .name { font-size: 0.75rem; color: #bbb; line-height: 1.3; word-break: break-word; }
+  .card .dl { font-size: 0.65rem; color: #444; margin-top: 5px; }
+  .card:hover .dl { color: #666; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 20px; font-size: 0.85rem; color: #ccc; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  #toast.show { opacity: 1; }
+
+  canvas { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lebensmittel Datenbank</h1>
+  <div class="search-row">
+    <input id="search" type="search" placeholder="Lebensmittel suchen..." autocomplete="off" />
+  </div>
+  <div class="filter-row" id="filters"></div>
+  <div id="count"></div>
+</header>
+
+<main>
+  <div id="grid"></div>
+</main>
+
+<div id="toast"></div>
+<canvas id="canvas" width="300" height="300"></canvas>
+
+<script>
+const DB = [
+  // Gemüse
+  {n:"Tomate",e:"🍅",k:"Gemüse"},{n:"Gurke",e:"🥒",k:"Gemüse"},{n:"Paprika",e:"🫑",k:"Gemüse"},
+  {n:"Karotte",e:"🥕",k:"Gemüse"},{n:"Brokkoli",e:"🥦",k:"Gemüse"},{n:"Blumenkohl",e:"🥦",k:"Gemüse"},
+  {n:"Salat",e:"🥬",k:"Gemüse"},{n:"Spinat",e:"🌿",k:"Gemüse"},{n:"Zwiebel",e:"🧅",k:"Gemüse"},
+  {n:"Knoblauch",e:"🧄",k:"Gemüse"},{n:"Kartoffel",e:"🥔",k:"Gemüse"},{n:"Süßkartoffel",e:"🍠",k:"Gemüse"},
+  {n:"Mais",e:"🌽",k:"Gemüse"},{n:"Pilze",e:"🍄",k:"Gemüse"},{n:"Aubergine",e:"🍆",k:"Gemüse"},
+  {n:"Zucchini",e:"🥒",k:"Gemüse"},{n:"Kürbis",e:"🎃",k:"Gemüse"},{n:"Lauch",e:"🌿",k:"Gemüse"},
+  {n:"Sellerie",e:"🌿",k:"Gemüse"},{n:"Rote Bete",e:"🫀",k:"Gemüse"},{n:"Erbsen",e:"🫛",k:"Gemüse"},
+  {n:"Bohnen",e:"🫘",k:"Gemüse"},{n:"Spargel",e:"🌱",k:"Gemüse"},{n:"Rotkohl",e:"🥬",k:"Gemüse"},
+  {n:"Weißkohl",e:"🥬",k:"Gemüse"},{n:"Rosenkohl",e:"🥦",k:"Gemüse"},{n:"Kohlrabi",e:"🥦",k:"Gemüse"},
+  {n:"Fenchel",e:"🌿",k:"Gemüse"},{n:"Rucola",e:"🌿",k:"Gemüse"},{n:"Avocado",e:"🥑",k:"Gemüse"},
+  {n:"Ingwer",e:"🫚",k:"Gemüse"},{n:"Chili",e:"🌶️",k:"Gemüse"},{n:"Frühlingszwiebeln",e:"🌿",k:"Gemüse"},
+  {n:"Artischocke",e:"🌱",k:"Gemüse"},{n:"Pak Choi",e:"🥬",k:"Gemüse"},
+
+  // Obst
+  {n:"Apfel",e:"🍎",k:"Obst"},{n:"Birne",e:"🍐",k:"Obst"},{n:"Banane",e:"🍌",k:"Obst"},
+  {n:"Orange",e:"🍊",k:"Obst"},{n:"Zitrone",e:"🍋",k:"Obst"},{n:"Limette",e:"🍋",k:"Obst"},
+  {n:"Erdbeere",e:"🍓",k:"Obst"},{n:"Heidelbeere",e:"🫐",k:"Obst"},{n:"Kirsche",e:"🍒",k:"Obst"},
+  {n:"Traube",e:"🍇",k:"Obst"},{n:"Wassermelone",e:"🍉",k:"Obst"},{n:"Melone",e:"🍈",k:"Obst"},
+  {n:"Mango",e:"🥭",k:"Obst"},{n:"Ananas",e:"🍍",k:"Obst"},{n:"Kiwi",e:"🥝",k:"Obst"},
+  {n:"Pfirsich",e:"🍑",k:"Obst"},{n:"Pflaume",e:"🍑",k:"Obst"},{n:"Himbeere",e:"🍓",k:"Obst"},
+  {n:"Brombeere",e:"🫐",k:"Obst"},{n:"Grapefruit",e:"🍊",k:"Obst"},{n:"Papaya",e:"🍈",k:"Obst"},
+  {n:"Kokosnuss",e:"🥥",k:"Obst"},{n:"Feige",e:"🍑",k:"Obst"},{n:"Granatapfel",e:"🍎",k:"Obst"},
+  {n:"Aprikose",e:"🍑",k:"Obst"},{n:"Clementine",e:"🍊",k:"Obst"},{n:"Passionsfrucht",e:"🍈",k:"Obst"},
+
+  // Fleisch & Fisch
+  {n:"Hähnchenbrust",e:"🍗",k:"Fleisch & Fisch"},{n:"Hähnchenkeule",e:"🍗",k:"Fleisch & Fisch"},
+  {n:"Hackfleisch",e:"🥩",k:"Fleisch & Fisch"},{n:"Rindfleisch",e:"🥩",k:"Fleisch & Fisch"},
+  {n:"Schweinefleisch",e:"🥩",k:"Fleisch & Fisch"},{n:"Speck",e:"🥓",k:"Fleisch & Fisch"},
+  {n:"Wurst",e:"🌭",k:"Fleisch & Fisch"},{n:"Lachs",e:"🐟",k:"Fleisch & Fisch"},
+  {n:"Thunfisch",e:"🐟",k:"Fleisch & Fisch"},{n:"Forelle",e:"🐟",k:"Fleisch & Fisch"},
+  {n:"Garnelen",e:"🦐",k:"Fleisch & Fisch"},{n:"Muscheln",e:"🦪",k:"Fleisch & Fisch"},
+  {n:"Kabeljau",e:"🐟",k:"Fleisch & Fisch"},{n:"Tilapia",e:"🐟",k:"Fleisch & Fisch"},
+  {n:"Putenbrust",e:"🍗",k:"Fleisch & Fisch"},{n:"Lammfleisch",e:"🥩",k:"Fleisch & Fisch"},
+  {n:"Kalbfleisch",e:"🥩",k:"Fleisch & Fisch"},{n:"Entenbrust",e:"🍗",k:"Fleisch & Fisch"},
+  {n:"Salami",e:"🍕",k:"Fleisch & Fisch"},{n:"Schinken",e:"🥓",k:"Fleisch & Fisch"},
+
+  // Milchprodukte & Eier
+  {n:"Ei",e:"🥚",k:"Milch & Eier"},{n:"Milch",e:"🥛",k:"Milch & Eier"},
+  {n:"Butter",e:"🧈",k:"Milch & Eier"},{n:"Joghurt",e:"🥛",k:"Milch & Eier"},
+  {n:"Käse",e:"🧀",k:"Milch & Eier"},{n:"Mozzarella",e:"🧀",k:"Milch & Eier"},
+  {n:"Parmesan",e:"🧀",k:"Milch & Eier"},{n:"Quark",e:"🥛",k:"Milch & Eier"},
+  {n:"Sahne",e:"🥛",k:"Milch & Eier"},{n:"Frischkäse",e:"🧀",k:"Milch & Eier"},
+  {n:"Schmand",e:"🥛",k:"Milch & Eier"},{n:"Creme fraiche",e:"🥛",k:"Milch & Eier"},
+  {n:"Feta",e:"🧀",k:"Milch & Eier"},{n:"Gouda",e:"🧀",k:"Milch & Eier"},
+  {n:"Emmentaler",e:"🧀",k:"Milch & Eier"},
+
+  // Getreide & Brot
+  {n:"Mehl",e:"🌾",k:"Getreide"},{n:"Reis",e:"🍚",k:"Getreide"},
+  {n:"Nudeln",e:"🍝",k:"Getreide"},{n:"Brot",e:"🍞",k:"Getreide"},
+  {n:"Haferflocken",e:"🌾",k:"Getreide"},{n:"Quinoa",e:"🌾",k:"Getreide"},
+  {n:"Bulgur",e:"🌾",k:"Getreide"},{n:"Couscous",e:"🌾",k:"Getreide"},
+  {n:"Linsen",e:"🫘",k:"Getreide"},{n:"Kichererbsen",e:"🫘",k:"Getreide"},
+  {n:"Cornflakes",e:"🌽",k:"Getreide"},{n:"Paniermehl",e:"🍞",k:"Getreide"},
+  {n:"Grieß",e:"🌾",k:"Getreide"},{n:"Dinkelmehl",e:"🌾",k:"Getreide"},
+  {n:"Vollkornmehl",e:"🌾",k:"Getreide"},{n:"Maisstärke",e:"🌽",k:"Getreide"},
+
+  // Gewürze & Kräuter
+  {n:"Salz",e:"🧂",k:"Gewürze"},{n:"Pfeffer",e:"🫙",k:"Gewürze"},
+  {n:"Paprikapulver",e:"🌶️",k:"Gewürze"},{n:"Kreuzkümmel",e:"🌿",k:"Gewürze"},
+  {n:"Oregano",e:"🌿",k:"Gewürze"},{n:"Basilikum",e:"🌿",k:"Gewürze"},
+  {n:"Petersilie",e:"🌿",k:"Gewürze"},{n:"Thymian",e:"🌿",k:"Gewürze"},
+  {n:"Rosmarin",e:"🌿",k:"Gewürze"},{n:"Koriander",e:"🌿",k:"Gewürze"},
+  {n:"Kurkuma",e:"🌿",k:"Gewürze"},{n:"Zimt",e:"🌿",k:"Gewürze"},
+  {n:"Muskatnuss",e:"🌰",k:"Gewürze"},{n:"Curry",e:"🌿",k:"Gewürze"},
+  {n:"Chili Flocken",e:"🌶️",k:"Gewürze"},{n:"Knoblauchpulver",e:"🧄",k:"Gewürze"},
+  {n:"Dill",e:"🌿",k:"Gewürze"},{n:"Schnittlauch",e:"🌿",k:"Gewürze"},
+  {n:"Lorbeerblatt",e:"🍃",k:"Gewürze"},{n:"Kardamom",e:"🌿",k:"Gewürze"},
+
+  // Öle & Saucen
+  {n:"Olivenöl",e:"🫒",k:"Öle & Saucen"},{n:"Sonnenblumenöl",e:"🌻",k:"Öle & Saucen"},
+  {n:"Kokosnussöl",e:"🥥",k:"Öle & Saucen"},{n:"Rapsöl",e:"🌿",k:"Öle & Saucen"},
+  {n:"Essig",e:"🫙",k:"Öle & Saucen"},{n:"Sojasauce",e:"🫙",k:"Öle & Saucen"},
+  {n:"Tomatenmark",e:"🍅",k:"Öle & Saucen"},{n:"Ketchup",e:"🍅",k:"Öle & Saucen"},
+  {n:"Mayonnaise",e:"🫙",k:"Öle & Saucen"},{n:"Senf",e:"🫙",k:"Öle & Saucen"},
+  {n:"Honig",e:"🍯",k:"Öle & Saucen"},{n:"Ahornsirup",e:"🍯",k:"Öle & Saucen"},
+  {n:"Worcestersauce",e:"🫙",k:"Öle & Saucen"},{n:"Tabasco",e:"🌶️",k:"Öle & Saucen"},
+  {n:"Balsamico",e:"🫙",k:"Öle & Saucen"},
+
+  // Nüsse & Samen
+  {n:"Mandeln",e:"🫘",k:"Nüsse & Samen"},{n:"Walnüsse",e:"🌰",k:"Nüsse & Samen"},
+  {n:"Haselnüsse",e:"🌰",k:"Nüsse & Samen"},{n:"Cashewnüsse",e:"🫘",k:"Nüsse & Samen"},
+  {n:"Erdnüsse",e:"🥜",k:"Nüsse & Samen"},{n:"Erdnussbutter",e:"🥜",k:"Nüsse & Samen"},
+  {n:"Sonnenblumenkerne",e:"🌻",k:"Nüsse & Samen"},{n:"Kürbiskerne",e:"🌱",k:"Nüsse & Samen"},
+  {n:"Sesam",e:"🌱",k:"Nüsse & Samen"},{n:"Leinsamen",e:"🌱",k:"Nüsse & Samen"},
+  {n:"Chiasamen",e:"🌱",k:"Nüsse & Samen"},{n:"Pistazien",e:"🫘",k:"Nüsse & Samen"},
+  {n:"Pekannüsse",e:"🌰",k:"Nüsse & Samen"},{n:"Pinienkerne",e:"🌰",k:"Nüsse & Samen"},
+  {n:"Macadamia",e:"🌰",k:"Nüsse & Samen"},
+
+  // Süßes & Backen
+  {n:"Zucker",e:"🍬",k:"Süßes & Backen"},{n:"Brauner Zucker",e:"🍬",k:"Süßes & Backen"},
+  {n:"Puderzucker",e:"🍬",k:"Süßes & Backen"},{n:"Backpulver",e:"🧁",k:"Süßes & Backen"},
+  {n:"Schokolade",e:"🍫",k:"Süßes & Backen"},{n:"Kakaopulver",e:"🍫",k:"Süßes & Backen"},
+  {n:"Vanille",e:"🌿",k:"Süßes & Backen"},{n:"Hefe",e:"🧁",k:"Süßes & Backen"},
+  {n:"Gelatine",e:"🫙",k:"Süßes & Backen"},{n:"Marmelade",e:"🍓",k:"Süßes & Backen"},
+  {n:"Nutella",e:"🫙",k:"Süßes & Backen"},{n:"Kokosraspeln",e:"🥥",k:"Süßes & Backen"},
+
+  // Getränke
+  {n:"Wasser",e:"💧",k:"Getränke"},{n:"Milch",e:"🥛",k:"Getränke"},
+  {n:"Kaffee",e:"☕",k:"Getränke"},{n:"Tee",e:"🍵",k:"Getränke"},
+  {n:"Orangensaft",e:"🍊",k:"Getränke"},{n:"Apfelsaft",e:"🍎",k:"Getränke"},
+  {n:"Mineralwasser",e:"💧",k:"Getränke"},{n:"Kokosmilch",e:"🥥",k:"Getränke"},
+  {n:"Hafermilch",e:"🌾",k:"Getränke"},{n:"Mandelmilch",e:"🌰",k:"Getränke"},
+  {n:"Brühe",e:"🍲",k:"Getränke"},{n:"Tomatensuppe",e:"🍅",k:"Getränke"},
+  {n:"Zitronensaft",e:"🍋",k:"Getränke"},
+];
+
+const CATS = ["Alle", ...new Set(DB.map(x=>x.k))];
+
+let activeFilter = "Alle";
+let searchTerm = "";
+
+function render() {
+  const q = searchTerm.toLowerCase();
+  const items = DB.filter(x => {
+    const catOk = activeFilter === "Alle" || x.k === activeFilter;
+    const searchOk = !q || x.n.toLowerCase().includes(q) || x.k.toLowerCase().includes(q);
+    return catOk && searchOk;
+  });
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  items.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<span class="emoji">${item.e}</span><div class="name">${item.n}</div><div class="dl">↓ PNG</div>`;
+    card.onclick = () => downloadPNG(item);
+    grid.appendChild(card);
+  });
+
+  document.getElementById("count").textContent = `${items.length} Lebensmittel`;
+}
+
+function renderFilters() {
+  const row = document.getElementById("filters");
+  CATS.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "cat-btn" + (cat === activeFilter ? " active" : "");
+    btn.textContent = cat;
+    btn.onclick = () => {
+      activeFilter = cat;
+      document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      render();
+    };
+    row.appendChild(btn);
+  });
+}
+
+function downloadPNG(item) {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const size = 300;
+  canvas.width = size;
+  canvas.height = size;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Background
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, 20);
+  ctx.fill();
+
+  // Emoji
+  ctx.font = "120px serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(item.e, size / 2, size / 2 - 20);
+
+  // Name
+  ctx.font = "bold 22px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(item.n, size / 2, size - 48);
+
+  // Category
+  ctx.font = "14px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = "#666";
+  ctx.fillText(item.k, size / 2, size - 24);
+
+  // Download
+  const link = document.createElement("a");
+  link.download = item.n.replace(/\s+/g, "_") + ".png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+
+  showToast(`${item.n}.png gespeichert`);
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+document.getElementById("search").addEventListener("input", e => {
+  searchTerm = e.target.value;
+  render();
+});
+
+renderFilters();
+render();
+</script>
+</body>
+</html>
